@@ -10,7 +10,7 @@
     <!--[if IE 8]><script src="js/es5.js"></script><![endif]-->
     <!--<script src="js/jquery.js"></script>-->
   <script src="js/selectize.js"></script>
-  <script>
+<script>
 
 
 function getDBJSONValue(key) {
@@ -74,16 +74,26 @@ Array.prototype.toDict = function() {
   return dict;
 }
 
-// Array to dictionary (e.g. ['a', 'b', 'c'] -> {'a': 0, 'b': 1, 'c': '2'})
-Object.prototype.toArray = function() {
-  var list = [];
-  for (var key in this) {
-    if (this.hasOwnProperty(key)) {
-      console.log(key, this)
-      list.push(key);
+// Translate set to array
+function _setToArray(dict) {
+  var array = [];
+  for (var key in dict) {
+    if (dict.hasOwnProperty(key)) {
+      array.push(key);
     }
   }
-  return list;
+  return array;
+}
+
+// Translate set to array
+function _dictToArray(dict) {
+  var array = [];
+  for (var key in dict) {
+    if (dict.hasOwnProperty(key)) {
+      array.push(dict[key]);
+    }
+  }
+  return array;
 }
 
 function pickRandomMatch(dbtemp, name) {
@@ -204,15 +214,24 @@ function initState() {
   addPerson('Rena Li')
 }
 
-function translateCellValue(key, value) {
+function translateCellValue(item, key, value) {
 
   // convert blacklist into input
   if (key == 'blacklist') {
     console.log(key, value);
-    var multiselect = $('<input type="text" placeholder="People avoid pairing with..." class="demo-default blacklist-select">');
+    var multiselect = $('<input data-person="' + item.name + '" type="text" placeholder="People avoid pairing with..." class="demo-default blacklist-select">');
     // Set the value to comma-delimited list as pre-selected values
-    console.log('valu', value.toArray().toString(), value.toArray());
-    return multiselect.attr('value', value.toArray().toString());
+    console.log('value');
+    return multiselect.attr('value', _setToArray(value).toString());
+  } else if (key == 'history') {
+    var list = _setToArray(value);
+    // var div = $('<table class="row"></table');
+    var div = [];
+    for (var i=0; i<list.length; i++) {
+      div.push($('<td class="">' + list[i] + '</td>'));
+    }
+    // div.append(tr);
+    return div;
   } else {
     return JSON.stringify(value);
   }
@@ -225,16 +244,22 @@ function buildHtmlTable(selector, db) {
   for (var i in db) {
     var row$ = $('<tr/>');
     for (var colIndex = 0 ; colIndex < columns.length ; colIndex++) {
-      var cellValue = db[i][columns[colIndex]];
+      var item = db[i];
+      var cellValue = item[columns[colIndex]];
 
       if (cellValue == null) {
         cellValue = "";
       } else if (typeof cellValue === 'object') {
         // cellValue = JSON.stringify(cellValue);
-        cellValue = translateCellValue(columns[colIndex], cellValue);
+        cellValue = translateCellValue(item, columns[colIndex], cellValue);
       }
 
-      row$.append($('<td/>').html(cellValue));
+      // catch case when cell hold many cells
+      if ($.isArray(cellValue) && cellValue.length > 0) {
+        row$.append(cellValue);
+      } else {
+        row$.append($('<td/>').html(cellValue));
+      }
     }
     $(selector).append(row$);
   }
@@ -254,7 +279,11 @@ function addAllColumnHeaders(db, selector) {
       if (!(key in columnSet)) {
         columnSet[key] = 1;
         columnList.push(key);
-        headerTr$.append($('<th/>').html(key));
+        var header = $('<th/>');
+        headerTr$.append(header.html(key));
+        if (key == 'history') {
+          header.attr('colspan', Math.max(pairdb.paircount, 1));
+        }
       }
     }
   }
@@ -266,11 +295,42 @@ function addAllColumnHeaders(db, selector) {
 function refreshTable() {
   $('#excelDataTable').html('');
   buildHtmlTable('#excelDataTable', db);
+  initializeBlacklist();
+}
 
+function initializeBlacklist() {
+  // initialize all the blacklist plugins
+  $('.blacklist-select').selectize({
+    delimiter: ',',
+    plugins: ['remove_button'],
+    maxItems: null,
+    valueField: 'name',
+    labelField: 'name',
+    searchField: 'name',
+    options: _dictToArray(db),
+    create: true,
+    onItemAdd: function(value, $item) {
+      // Add to person's black list
+      var p = db[this.$input.data('person')];
+      p.blacklist[value] = true;
+      console.log('add', this, value, $item, this.$input.data('person'));
+      saveDB();
+    },
+    onItemRemove: function(value) {
+      var p = db[this.$input.data('person')];
+      delete p.blacklist[value];
+      console.log('delete', value);
+      saveDB();
+    },
+    onBlur: function() {
+      saveDB();
+    }
+  });
 }
 
 $(window).ready(function() {
   buildHtmlTable('#excelDataTable', db);
+  initializeBlacklist();
 
   function bindModelInput(obj, property, domElem) {
   Object.defineProperty(obj, property, {
