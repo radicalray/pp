@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Prayer Pair Creator</title>
+  <script src="js/jquery-1.9.1.js" type="text/javascript"></script>
+  <script src="js/bootstrap.js" type="text/javascript"></script>
+  <link href="css/bootstrap.css" rel="stylesheet" type="text/css">
+  <link rel="stylesheet" href="css/selectize.default.css">
+    <!--[if IE 8]><script src="js/es5.js"></script><![endif]-->
+    <!--<script src="js/jquery.js"></script>-->
+  <script src="js/selectize.js"></script>
+  <script>
+
+
+function getDBJSONValue(key) {
+  var j = window.localStorage[key];
+  if (j && j != 'undefined') {
+    return JSON.parse(j);
+  }
+  return undefined;
+}
+
+function setDBJSONValue(key, value) {
+  window.localStorage[key] = JSON.stringify(value);
+}
+
+// Initialize from db
+var db = getDBJSONValue('ppdb') || {};
+var pairdb = getDBJSONValue('pairdb') || {paircount: 0};  //  paircount -> How many times we've uniquely paired each person
+
+function saveDB() {
+  setDBJSONValue('ppdb', db);
+  setDBJSONValue('pairdb', pairdb);
+}
+
+function addPerson(name) {
+  db[name] = {
+    name: name,
+    blacklist: {},   // Set
+    history: {},  // Set
+    clearHistory: function() {
+      this.history = {};
+    }
+  };
+
+  pairdb[name] = [];
+
+  saveDB();
+
+
+  return db[name];
+}
+
+// Returns a random integer between min (included) and max (excluded)
+// Using Math.round() will give you a non-uniform distribution!
+function getRandomInt(min, max) {
+  return Math.floor(Math.random() * (max - min)) + min;
+}
+
+// Array Remove - By John Resig (MIT Licensed)
+Array.prototype.remove = function(from, to) {
+  var rest = this.slice((to || from) + 1 || this.length);
+  this.length = from < 0 ? this.length + from : from;
+  return this.push.apply(this, rest);
+};
+
+// Array to dictionary (e.g. ['a', 'b', 'c'] -> {'a': 0, 'b': 1, 'c': '2'})
+Array.prototype.toDict = function() {
+  var dict = {};
+  for (var i=0; i<this.length; i++) {
+    dict[this[i]] = i;
+  }
+  return dict;
+}
+
+// Array to dictionary (e.g. ['a', 'b', 'c'] -> {'a': 0, 'b': 1, 'c': '2'})
+Object.prototype.toArray = function() {
+  var list = [];
+  for (var key in this) {
+    if (this.hasOwnProperty(key)) {
+      console.log(key, this)
+      list.push(key);
+    }
+  }
+  return list;
+}
+
+function pickRandomMatch(dbtemp, name) {
+  var pick1, pick2, ri, name2, keys;
+  var matched = false;
+
+  pick1 = db[name];
+  // pop name out of db
+  dbtemp[name] = pick1;
+  delete db[name];
+
+  // dump out all the keys
+  keys = [];
+  for (var key in db) {
+    // only push in valid keys to randomly pick from
+    // Check not in history or blacklist (blacklist check both sides b/c not necessarily symmetrical)
+    if (!(key in pick1.history || key in pick1.blacklist || pick1.name in db[key].blacklist)) {
+      keys.push(key);
+    }
+  };
+
+  // Keep randomly picking while there are options left
+  while(!matched && keys.length > 0) {
+    // randomly pick a key
+    ri = getRandomInt(0, keys.length);
+    name2 = keys[ri];
+    console.log('kes', ri, keys.length)
+    keys.remove(ri);  // remove once picked so won't pick again
+    pick2 = db[name2];
+
+    // match it!
+    console.log('matched!', name, name2);
+    // add to pair list + both histories
+    pick1.history[name2] = pairdb.paircount;
+    pick2.history[name] = pairdb.paircount;
+    pairdb[name].push(name2);
+    pairdb[name2].push(name);
+
+    // pop out pick2
+    delete db[name2];
+    // push into dbtemp for commit
+    dbtemp[name2] = pick2;
+
+    matched = true; // end the loop
+  }
+
+  return matched;
+}
+
+function pairup() {
+  var count = 0;
+  var pick1, pick2;
+
+  // Check db is even before proceeding
+  for (name in db) {
+    count++;
+  }
+
+  if (count % 2 != 0) {
+    alert("You don't have an even number of people, can't do a perfect pairing. quiting");
+    return false;
+  }
+
+  var dbtemp = {};
+
+  for (var name in db) {
+    // if no match, need to give up, and throw
+    if (!pickRandomMatch(dbtemp, name)) {
+      // reset db
+      db = getDBJSONValue('ppdb');
+      throw 'Could be out of solutions: did not match ' + name;
+      console.log('asdf');
+    }
+  }
+
+  // double check dbtemp should be empty after all the picking
+  for (key in db) {
+    throw 'dbtemp should be empty but found: ' + key + ':' + JSON.stringify(db);
+  }
+
+  pairdb.paircount++;
+
+  // commit back to db
+  db = dbtemp;
+  saveDB();
+
+  console.log('soln', pairdb);
+
+  refreshTable();
+
+}
+
+function clearHistory() {
+  for (var name in db) {
+    db[name].history = {};
+  }
+}
+
+function clearPairing() {
+  for (var name in pairdb) {
+    pairdb[name] = [];
+  }
+
+  pairdb.paircount = 0;
+}
+
+function clearState() {
+  clearPairing();
+  clearHistory();
+  saveDB();
+  refreshTable();
+}
+
+function initState() {
+  addPerson('Mike Li')
+  addPerson('Ray Li')
+  addPerson('Richard Li')
+  addPerson('Rena Li')
+}
+
+function translateCellValue(key, value) {
+
+  // convert blacklist into input
+  if (key == 'blacklist') {
+    console.log(key, value);
+    var multiselect = $('<input type="text" placeholder="People avoid pairing with..." class="demo-default blacklist-select">');
+    // Set the value to comma-delimited list as pre-selected values
+    console.log('valu', value.toArray().toString(), value.toArray());
+    return multiselect.attr('value', value.toArray().toString());
+  } else {
+    return JSON.stringify(value);
+  }
+}
+
+// Builds the HTML Table out of myList.
+function buildHtmlTable(selector, db) {
+  var columns = addAllColumnHeaders(db, selector);
+
+  for (var i in db) {
+    var row$ = $('<tr/>');
+    for (var colIndex = 0 ; colIndex < columns.length ; colIndex++) {
+      var cellValue = db[i][columns[colIndex]];
+
+      if (cellValue == null) {
+        cellValue = "";
+      } else if (typeof cellValue === 'object') {
+        // cellValue = JSON.stringify(cellValue);
+        cellValue = translateCellValue(columns[colIndex], cellValue);
+      }
+
+      row$.append($('<td/>').html(cellValue));
+    }
+    $(selector).append(row$);
+  }
+}
+
+// Adds a header row to the table and returns the set of columns.
+// Need to do union of keys from all records as some records may not contain
+// all records
+function addAllColumnHeaders(db, selector) {
+  var columnSet = {};
+  var columnList = [];
+  var headerTr$ = $('<tr/>');
+
+  for (var i in db) {
+    var rowHash = db[i];
+    for (var key in rowHash) {
+      if (!(key in columnSet)) {
+        columnSet[key] = 1;
+        columnList.push(key);
+        headerTr$.append($('<th/>').html(key));
+      }
+    }
+  }
+  $(selector).append(headerTr$);
+
+  return columnList;
+}
+
+function refreshTable() {
+  $('#excelDataTable').html('');
+  buildHtmlTable('#excelDataTable', db);
+
+}
+
+$(window).ready(function() {
+  buildHtmlTable('#excelDataTable', db);
+
+  function bindModelInput(obj, property, domElem) {
+  Object.defineProperty(obj, property, {
+    get: function() { return domElem.value; },
+    set: function(newValue) { domElem.value = newValue; },
+    configurable: true
+  });
+}
+
+//<input id="foo">
+user = {}
+bindModelInput(user,'name',document.getElementById('foo')); //hey presto, we now have two-way data binding.
+
+
+
+
+function drawTable(data) {
+  var table = $('<table class="table table-bordered">');
+  for (var i in data) {
+    if (typeof data[i] === 'object')
+      drawRow(table, i, data[i]);
+  }
+
+  return table;
+}
+
+function drawRow(table, key, rowData) {
+  var row = $("<tr />")
+  table.append(row); //this will append tr element to table... keep its reference for a while since we will add cels into it
+  row.append($("<td>" + key + "</td>"));
+  for (var i=0; i<rowData.length; i++) {
+    row.append($("<td>" + rowData[i] + "</td>"));
+  }
+}
+
+
+$('#myModal').on('show.bs.modal', function (event) {
+  var button = $(event.relatedTarget) // Button that triggered the modal
+  // var recipient = button.data('whatever') // Extract info from data-* attributes
+  // If necessary, you could initiate an AJAX request here (and then do the updating in a callback).
+  // Update the modal's content. We'll use jQuery here, but you could use a data binding library or other methods instead.
+  var modal = $(this)
+  // modal.find('.modal-title').text('New message to ' + recipient)
+  var table = drawTable(pairdb);
+  modal.find('.modal-body').empty().append(table);
+})
+
+
+});
+
+
+  </script>
+
+</head>
+<body>
+
+  <div class="demo">
+        <div class="control-group">
+          <!-- <select id="select-tools" multiple placeholder="People avoid pairing with..." value="awesome,neat">
+
+            <option value="Ray Li" selected>Ray Li</option>
+            <option value="C" selected>Option C</option>
+          </select> -->
+          <input type="text" id="select-tools" placeholder="People avoid pairing with..." class="demo-default" value="Ray Li,Richard Li">
+        </div>
+        <script>
+        // <select id="select-tools"></select>
+
+        $('#select-tools').selectize({
+          delimiter: ',',
+          // items: [{id: 1, name: 'Ray Li', url: 'http://en.wikipedia.org/wiki/Spectrometers'}],
+          plugins: ['remove_button'],
+          maxItems: null,
+          valueField: 'name',
+          labelField: 'name',
+          searchField: 'name',
+          options: [
+            {id: 1, name: 'Ray Li', url: 'http://en.wikipedia.org/wiki/Spectrometers'},
+            {id: 2, name: 'Richard Li', url: 'http://en.wikipedia.org/wiki/Star_chart'},
+            {id: 3, name: 'Rena Li', url: 'http://en.wikipedia.org/wiki/Electrical_tape'}
+          ],
+          create: true
+        });
+        </script>
+      </div>
+
+  <input id="foo">
+
+  <table id="excelDataTable" class="table table-bordered table-hover" border="1">
+  </table>
+
+
+<button type="button" class="btn btn-primary btn-lg" onclick="pairup();">
+  Pair up
+</button>
+  <!-- Button trigger modal -->
+<button type="button" class="btn btn-primary btn-lg" data-toggle="modal" data-target="#myModal">
+  View Prayer Pairs
+</button>
+<button type="button" class="btn btn-default btn-lg" onclick="clearState();">
+  Reset
+</button>
+
+<!-- Modal -->
+<div class="modal fade" id="myModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        <h4 class="modal-title" id="myModalLabel">Prayer Pairs</h4>
+      </div>
+      <div class="modal-body">
+        ...
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+        <!-- <button type="button" class="btn btn-primary">Save changes</button> -->
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
