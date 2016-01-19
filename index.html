@@ -38,10 +38,7 @@ function addPerson(name) {
   db[name] = {
     name: name,
     blacklist: {},   // Set
-    history: {},  // Set
-    clearHistory: function() {
-      this.history = {};
-    }
+    history: {}  // Set
   };
 
   pairdb[name] = [];
@@ -91,6 +88,16 @@ function _dictToArray(dict) {
   for (var key in dict) {
     if (dict.hasOwnProperty(key)) {
       array.push(dict[key]);
+    }
+  }
+  return array;
+}
+
+function _dictKeysToArray(dict) {
+  var array = [];
+  for (var key in dict) {
+    if (dict.hasOwnProperty(key)) {
+      array.push(key);
     }
   }
   return array;
@@ -164,6 +171,7 @@ function pairup() {
     if (!pickRandomMatch(dbtemp, name)) {
       // reset db
       db = getDBJSONValue('ppdb');
+      $('#pairWarning').modal('show');
       throw 'Could be out of solutions: did not match ' + name;
       console.log('asdf');
     }
@@ -221,7 +229,6 @@ function translateCellValue(item, key, value) {
     console.log(key, value);
     var multiselect = $('<input data-person="' + item.name + '" type="text" placeholder="People avoid pairing with..." class="demo-default blacklist-select">');
     // Set the value to comma-delimited list as pre-selected values
-    console.log('value');
     return multiselect.attr('value', _setToArray(value).toString());
   } else if (key == 'history') {
     var list = _setToArray(value);
@@ -237,13 +244,26 @@ function translateCellValue(item, key, value) {
   }
 }
 
+function toTitleCase(str) {
+  return str.replace(/\w\S*/g, function(txt){return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();});
+}
+
 // Builds the HTML Table out of myList.
-function buildHtmlTable(selector, db) {
-  var columns = addAllColumnHeaders(db, selector);
+function buildHtmlTable(selector, db, actionCol) {
+  var columns = addAllColumnHeaders(db, selector, actionCol),
+      columnLength = columns.length;
+
+  if (actionCol) {
+    columnLength--;
+  }
 
   for (var i in db) {
+    if (!db.hasOwnProperty(i)) {
+      continue;
+    }
     var row$ = $('<tr/>');
-    for (var colIndex = 0 ; colIndex < columns.length ; colIndex++) {
+    for (var colIndex = 0 ; colIndex < columnLength ; colIndex++) {
+      console.log('colinex', colIndex)
       var item = db[i];
       var cellValue = item[columns[colIndex]];
 
@@ -261,14 +281,29 @@ function buildHtmlTable(selector, db) {
         row$.append($('<td/>').html(cellValue));
       }
     }
+
+    console.log('build', actionCol, colIndex, row$);
+
+    if (actionCol) {
+      row$.append($('<td/>').html(actionCol.value));
+    }
+
     $(selector).append(row$);
+  }
+}
+
+function calculateTR(headerTr$, key) {
+  var header = $('<th/>');
+  headerTr$.append(header.html(toTitleCase(key)));
+  if (key == 'history') {
+    header.attr('colspan', Math.max(pairdb.paircount, 1));
   }
 }
 
 // Adds a header row to the table and returns the set of columns.
 // Need to do union of keys from all records as some records may not contain
 // all records
-function addAllColumnHeaders(db, selector) {
+function addAllColumnHeaders(db, selector, actionCol) {
   var columnSet = {};
   var columnList = [];
   var headerTr$ = $('<tr/>');
@@ -279,14 +314,18 @@ function addAllColumnHeaders(db, selector) {
       if (!(key in columnSet)) {
         columnSet[key] = 1;
         columnList.push(key);
-        var header = $('<th/>');
-        headerTr$.append(header.html(key));
-        if (key == 'history') {
-          header.attr('colspan', Math.max(pairdb.paircount, 1));
-        }
+        calculateTR(headerTr$, key);
       }
     }
   }
+
+  // add optinal action col
+  if (actionCol) {
+    var an = actionCol.name;
+    columnList.push(an);
+    calculateTR(headerTr$, an);
+  }
+
   $(selector).append(headerTr$);
 
   return columnList;
@@ -294,7 +333,7 @@ function addAllColumnHeaders(db, selector) {
 
 function refreshTable() {
   $('#excelDataTable').html('');
-  buildHtmlTable('#excelDataTable', db);
+  buildFullTable();
   initializeBlacklist();
 }
 
@@ -324,12 +363,77 @@ function initializeBlacklist() {
     },
     onBlur: function() {
       saveDB();
+    },
+    onOptionAdd: function(value, data) {
+      console.log('add new option', value, data);
+      // add the user to db table
+      addPerson(value);
+      // refresh table
+      refreshTable();
     }
   });
 }
 
+// Detect Paste!
+//
+function getTextAreaSelection(textarea) {
+  var start = textarea.selectionStart, end = textarea.selectionEnd;
+  return {
+    start: start,
+    end: end,
+    length: end - start,
+    text: textarea.value.slice(start, end)
+  };
+}
+
+function detectPaste(textarea, callback) {
+    textarea.onpaste = function() {
+        // save cursor position
+        var cstart = this.selectionStart,
+        cend = this.selectionEnd,
+        elem = this;
+
+        var sel = getTextAreaSelection(textarea);
+        var initialLength = textarea.value.length;
+        window.setTimeout(function() {
+            var val = textarea.value;
+            var pastedTextLength = val.length - (initialLength - sel.length);
+            var end = sel.start + pastedTextLength;
+            callback({
+                start: sel.start,
+                end: end,
+                length: pastedTextLength,
+                text: val.slice(sel.start, end),
+                elem: elem
+            });
+        }, 1);
+    };
+}
+
+String.prototype.replaceBetween = function(start, end, what) {
+    return this.substring(0, start) + what + this.substring(end);
+};
+
+
+function buildFullTable() {
+  buildHtmlTable('#excelDataTable', db, {
+    name: 'action',
+    value: '<button class="btn btn-xs btn-danger deleteUser">×</button>'
+  });
+
+  $('.deleteUser').click(function(e) {
+    var row = $(e.target).parent().parent();
+    var name = row.children()[0].innerHTML;
+    delete db[name];
+    saveDB();
+    row.remove();
+    // console.log('row', row.children()[0].innerHTML);
+  })
+
+}
+
 $(window).ready(function() {
-  buildHtmlTable('#excelDataTable', db);
+  buildFullTable();
   initializeBlacklist();
 
   function bindModelInput(obj, property, domElem) {
@@ -337,6 +441,23 @@ $(window).ready(function() {
     get: function() { return domElem.value; },
     set: function(newValue) { domElem.value = newValue; },
     configurable: true
+  });
+
+  var textarea = document.getElementById("prayerPool");
+  detectPaste(textarea, function(pasteInfo) {
+      console.log(pasteInfo.text, pasteInfo);
+
+      var str = pasteInfo.text.split('\n').join(', ') + ', ';
+
+      textarea.value = textarea.value.replaceBetween(pasteInfo.start,
+          pasteInfo.end, str);
+
+
+      // restore cursor from variables...
+      console.log('start/end', pasteInfo.start, pasteInfo.start + str.length);
+      pasteInfo.elem.setSelectionRange(pasteInfo.start, pasteInfo.start + str.length);
+      // pasteInfo also has properties for the start and end character
+      // index and length of the pasted text
   });
 }
 
@@ -360,87 +481,161 @@ function drawTable(data) {
 function drawRow(table, key, rowData) {
   var row = $("<tr />")
   table.append(row); //this will append tr element to table... keep its reference for a while since we will add cels into it
-  row.append($("<td>" + key + "</td>"));
+  row.append($("<td><b>" + key + "</b></td>"));
   for (var i=0; i<rowData.length; i++) {
-    row.append($("<td>" + rowData[i] + "</td>"));
+    var data = rowData[i];
+    if ($.type(data) == 'string') {
+      row.append($("<td>" + data + "</td>"));
+    } else {
+      row.append($("<td>" + data.k + "</td>"));
+    }
+
   }
 }
 
 
-$('#myModal').on('show.bs.modal', function (event) {
+function sortHistory(history) {
+  var temp = [];
+  $.each(history, function(key, value) {
+    temp.push({v:value, k: key});
+  });
+  temp.sort(function(a,b){
+   if(a.v > b.v){ return 1}
+    if(a.v < b.v){ return -1}
+      return 0;
+  });
+
+  return temp;
+}
+
+$('#pairsModal').on('show.bs.modal', function (event) {
   var button = $(event.relatedTarget) // Button that triggered the modal
   // var recipient = button.data('whatever') // Extract info from data-* attributes
   // If necessary, you could initiate an AJAX request here (and then do the updating in a callback).
   // Update the modal's content. We'll use jQuery here, but you could use a data binding library or other methods instead.
   var modal = $(this)
   // modal.find('.modal-title').text('New message to ' + recipient)
+  var pairdb = {};
+  for (var key in db) {
+    var user = db[key];
+    pairdb[key] = sortHistory(user.history);
+  }
+
   var table = drawTable(pairdb);
   modal.find('.modal-body').empty().append(table);
-})
+});
 
+$('#editUserModal').on('show.bs.modal', function (event) {
+  var button = $(event.relatedTarget) // Button that triggered the modal
+  // var recipient = button.data('whatever') // Extract info from data-* attributes
+  // If necessary, you could initiate an AJAX request here (and then do the updating in a callback).
+  // Update the modal's content. We'll use jQuery here, but you could use a data binding library or other methods instead.
+  var modal = $(this);
+  // populate with existing users
+  var str = _dictKeysToArray(db).join(', ');
+  modal.find('#prayerPool').text(str);
+});
+
+$('#savePool').click(function(e) {
+    // Save the form data via an Ajax request
+    e.preventDefault();
+
+    var textarea = $('#prayerPool'),
+        list = textarea.val().split(','),
+        user, newdb = {};
+
+    // loop through text and add users not already added
+    for (var i = 0; i < list.length; i++) {
+      user = list[i].trim(' ');
+      if (user == undefined || user.trim(' ') == '') {
+        continue;
+      }
+      if (user in db) {
+        // add it
+        newdb[user] = db[user];
+      } else {
+        newdb[user] = addPerson(user);
+      }
+
+    }
+
+    db = newdb;
+    saveDB();
+    refreshTable();
+
+    console.log('success!', textarea);
+
+    $("#editUserModal").modal("hide");
+});
 
 });
+
+// $('#savePool').click(function(e) {
+
+// })
 
 
   </script>
 
 </head>
 <body>
+<nav class="navbar navbar-default navbar-fixed-top">
+  <div class="container-fluid">
+    <div class="navbar-header">
+      <a class="navbar-brand" href="#">Prayer Pair generator!</a>
+    </div>
 
-  <div class="demo">
-        <div class="control-group">
-          <!-- <select id="select-tools" multiple placeholder="People avoid pairing with..." value="awesome,neat">
+    <form class="navbar-form navbar-right" role="search">
+      <button type="button" class="btn btn-success" data-toggle="modal" data-target="#editUserModal">
+          Edit Partner Pool
+        </button>
+        <button type="button" class="btn btn-primary" onclick="pairup();">
+          Pair up
+        </button>
+        <!-- Button trigger modal -->
+        <button type="button" class="btn btn-default" data-toggle="modal" data-target="#pairsModal">
+          View Prayer Pairs
+        </button>
+        <button type="button" class="btn btn-danger" onclick="clearState();">
+          Reset
+        </button>
+    </form>
 
-            <option value="Ray Li" selected>Ray Li</option>
-            <option value="C" selected>Option C</option>
-          </select> -->
-          <input type="text" id="select-tools" placeholder="People avoid pairing with..." class="demo-default" value="Ray Li,Richard Li">
-        </div>
-        <script>
-        // <select id="select-tools"></select>
 
-        $('#select-tools').selectize({
-          delimiter: ',',
-          // items: [{id: 1, name: 'Ray Li', url: 'http://en.wikipedia.org/wiki/Spectrometers'}],
-          plugins: ['remove_button'],
-          maxItems: null,
-          valueField: 'name',
-          labelField: 'name',
-          searchField: 'name',
-          options: [
-            {id: 1, name: 'Ray Li', url: 'http://en.wikipedia.org/wiki/Spectrometers'},
-            {id: 2, name: 'Richard Li', url: 'http://en.wikipedia.org/wiki/Star_chart'},
-            {id: 3, name: 'Rena Li', url: 'http://en.wikipedia.org/wiki/Electrical_tape'}
-          ],
-          create: true
-        });
-        </script>
-      </div>
-
-  <input id="foo">
-
+  </div>
+</nav>
+<h3>Prayer Pair generator!</h3>
   <table id="excelDataTable" class="table table-bordered table-hover" border="1">
   </table>
 
 
-<button type="button" class="btn btn-primary btn-lg" onclick="pairup();">
-  Pair up
-</button>
-  <!-- Button trigger modal -->
-<button type="button" class="btn btn-primary btn-lg" data-toggle="modal" data-target="#myModal">
-  View Prayer Pairs
-</button>
-<button type="button" class="btn btn-default btn-lg" onclick="clearState();">
-  Reset
-</button>
-
 <!-- Modal -->
-<div class="modal fade" id="myModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+<div class="modal fade" id="editUserModal" tabindex="-1" role="dialog" aria-labelledby="editUserModalLabel">
   <div class="modal-dialog" role="document">
     <div class="modal-content">
       <div class="modal-header">
         <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-        <h4 class="modal-title" id="myModalLabel">Prayer Pairs</h4>
+        <h4 class="modal-title" id="editUserModalLabel">Prayer Partner Pool</h4>
+      </div>
+      <div class="modal-body">
+        <p>Enter partner names (e.g. Joe Doe, Jane Smith). You can also paste data from excel</p>
+        <textarea id="prayerPool" class="form-control" placeholder="Partner names (e.g. Joe Doe, Jane Smith) Paste data from excel" rows="3"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+        <button type="button" id="savePool" class="btn btn-primary">Save changes</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal fade" id="pairsModal" tabindex="-1" role="dialog" aria-labelledby="pairsModalLabel">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        <h4 class="modal-title" id="pairsModalLabel">Prayer Pairs</h4>
       </div>
       <div class="modal-body">
         ...
@@ -452,6 +647,23 @@ $('#myModal').on('show.bs.modal', function (event) {
     </div>
   </div>
 </div>
+
+<div id="pairWarning" class="modal fade" tabindex="-1" role="dialog">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        <h4 class="modal-title">Note</h4>
+      </div>
+      <div class="modal-body">
+        <p>No more possible pairing combinations without violating blacklist + history constraints!</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+      </div>
+    </div><!-- /.modal-content -->
+  </div><!-- /.modal-dialog -->
+</div><!-- /.modal -->
 
 </body>
 </html>
