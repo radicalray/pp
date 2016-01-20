@@ -7,10 +7,22 @@
   <script src="js/bootstrap.js" type="text/javascript"></script>
   <link href="css/bootstrap.css" rel="stylesheet" type="text/css">
   <link rel="stylesheet" href="css/selectize.default.css">
+
+  <style>
+#excelDataTable tr td:nth-child(2) {
+  padding: 0px;
+}
+
+#groupDataTable td:hover {
+    cursor: pointer;
+}
+  </style>
     <!--[if IE 8]><script src="js/es5.js"></script><![endif]-->
     <!--<script src="js/jquery.js"></script>-->
   <script src="js/selectize.js"></script>
 <script>
+
+var currentdb, groupdb, pairdb, db;
 
 
 function getDBJSONValue(key) {
@@ -23,15 +35,37 @@ function getDBJSONValue(key) {
 
 function setDBJSONValue(key, value) {
   window.localStorage[key] = JSON.stringify(value);
+  return getDBJSONValue(key);
+}
+
+
+function setDBToGroup(group) {
+  return db = getDBJSONValue('ppdb')[group] || undefined;
+}
+
+function getCurrentGroup() {
+  return currentdb = getDBJSONValue('currentppgroup');
+}
+
+function setCurrentGroup(group) {
+  return currentdb = setDBJSONValue('currentppgroup', group);
 }
 
 // Initialize from db
-var db = getDBJSONValue('ppdb') || {};
-var pairdb = getDBJSONValue('pairdb') || {paircount: 0};  //  paircount -> How many times we've uniquely paired each person
+groupdb = getDBJSONValue('ppdb') || {};
+pairdb = getDBJSONValue('pairdb') || {paircount: 0};  //  paircount -> How many times we've uniquely paired each person
 
-function saveDB() {
-  setDBJSONValue('ppdb', db);
-  setDBJSONValue('pairdb', pairdb);
+// pick which group to show
+currentdb = getCurrentGroup();
+db = groupdb[currentdb] || undefined;
+
+
+
+function saveDB(dontsavecurrentdb) {
+  if (!dontsavecurrentdb) {
+    groupdb[currentdb] = db;
+  }
+  setDBJSONValue('ppdb', groupdb);
 }
 
 function addPerson(name) {
@@ -134,8 +168,9 @@ function pickRandomMatch(dbtemp, name) {
     // match it!
     console.log('matched!', name, name2);
     // add to pair list + both histories
-    pick1.history[name2] = pairdb.paircount;
-    pick2.history[name] = pairdb.paircount;
+    var pc = calculationPairCount();
+    pick1.history[name2] = pc;
+    pick2.history[name] = pc;
     pairdb[name].push(name2);
     pairdb[name2].push(name);
 
@@ -148,6 +183,23 @@ function pickRandomMatch(dbtemp, name) {
   }
 
   return matched;
+}
+
+function pickAll(dbtemp) {
+  for (var name in db) {
+    // if no match, need to give up, and throw
+    if (!pickRandomMatch(dbtemp, name)) {
+      // reset db
+      console.log('resetting to group', getCurrentGroup());
+      db = groupdb[getCurrentGroup];
+      setDBToGroup(getCurrentGroup());
+      // $('#pairWarning').modal('show');
+      console.error('Could be out of solutions: did not match ' + name);
+      return false;
+    }
+  }
+
+  return true;
 }
 
 function pairup() {
@@ -164,25 +216,37 @@ function pairup() {
     return false;
   }
 
-  var dbtemp = {};
 
-  for (var name in db) {
-    // if no match, need to give up, and throw
-    if (!pickRandomMatch(dbtemp, name)) {
-      // reset db
-      db = getDBJSONValue('ppdb');
-      $('#pairWarning').modal('show');
-      throw 'Could be out of solutions: did not match ' + name;
-      console.log('asdf');
-    }
+
+  var noSolution = true;
+  var tries = 0;
+  while(noSolution && tries < 100) {
+    var dbtemp = {};
+    noSolution = !pickAll(dbtemp);
+    tries++;
   }
+
+  if (noSolution) {
+    $('#pairWarning').modal('show');
+  }
+
+  // for (var name in db) {
+  //   // if no match, need to give up, and throw
+  //   if (!pickRandomMatch(dbtemp, name)) {
+  //     // reset db
+  //     db = getDBJSONValue('ppdb');
+  //     // $('#pairWarning').modal('show');
+  //     throw 'Could be out of solutions: did not match ' + name;
+  //     console.log('asdf');
+  //   }
+  // }
 
   // double check dbtemp should be empty after all the picking
   for (key in db) {
-    throw 'dbtemp should be empty but found: ' + key + ':' + JSON.stringify(db);
+    throw 'db should be empty but found: ' + key + ':' + JSON.stringify(db);
   }
 
-  pairdb.paircount++;
+  // pairdb.paircount++;
 
   // commit back to db
   db = dbtemp;
@@ -200,12 +264,20 @@ function clearHistory() {
   }
 }
 
+function calculationPairCount() {
+  var paircount = 0;
+  for (var key in db) {
+    paircount = Math.max(_setToArray(db[key].history).length, paircount);
+  }
+  return paircount;
+}
+
 function clearPairing() {
   for (var name in pairdb) {
     pairdb[name] = [];
   }
 
-  pairdb.paircount = 0;
+  // pairdb.paircount = 0;
 }
 
 function clearState() {
@@ -248,7 +320,20 @@ function toTitleCase(str) {
   return str.replace(/\w\S*/g, function(txt){return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();});
 }
 
+
+var DEFAULT_MENU_TITLE = 'Prayer Pair generator!';
+
+
+function showPoolEmptyWell() {
+  $('#groupDataTable').html('<div class="alert alert-warning" role="alert"><h4 class="text-center"><span class="glyphicon glyphicon-exclamation-sign" aria-hidden="true"></span> You currently have no groups!</h4> <div class="text-center"><button data-toggle="modal" data-target="#addGroupModal" class="btn btn-success btn-lg">Add a New Group!</button></div></div>');
+}
+
+function showGroupEmptyWell() {
+  $('#excelDataTable').html('<div class="alert alert-default" role="alert"><h4 class="text-center"><span class="glyphicon glyphicon-exclamation-sign" aria-hidden="true"></span> You currently have no people in your pool!</h4> <div class="text-center"><button data-toggle="modal" data-target="#editUserModal" class="btn btn-success btn-lg">Add people to your pool!</button></div></div>');
+}
+
 // Builds the HTML Table out of myList.
+// Returns true if table none-empty, else false
 function buildHtmlTable(selector, db, actionCol) {
   var columns = addAllColumnHeaders(db, selector, actionCol),
       columnLength = columns.length;
@@ -290,13 +375,19 @@ function buildHtmlTable(selector, db, actionCol) {
 
     $(selector).append(row$);
   }
+
+  if (columnLength <= 0) {
+    return false;
+  } else {
+    return true;
+  }
 }
 
 function calculateTR(headerTr$, key) {
   var header = $('<th/>');
   headerTr$.append(header.html(toTitleCase(key)));
   if (key == 'history') {
-    header.attr('colspan', Math.max(pairdb.paircount, 1));
+    header.attr('colspan', Math.max(calculationPairCount(), 1));
   }
 }
 
@@ -320,7 +411,7 @@ function addAllColumnHeaders(db, selector, actionCol) {
   }
 
   // add optinal action col
-  if (actionCol) {
+  if (columnList.length > 0 && actionCol) {
     var an = actionCol.name;
     columnList.push(an);
     calculateTR(headerTr$, an);
@@ -416,25 +507,118 @@ String.prototype.replaceBetween = function(start, end, what) {
 
 
 function buildFullTable() {
-  buildHtmlTable('#excelDataTable', db, {
+  var notEmpty = buildHtmlTable('#excelDataTable', db, {
     name: 'action',
     value: '<button class="btn btn-xs btn-danger deleteUser">×</button>'
   });
+
+  if (!notEmpty) {
+    showGroupEmptyWell();
+  }
 
   $('.deleteUser').click(function(e) {
     var row = $(e.target).parent().parent();
     var name = row.children()[0].innerHTML;
     delete db[name];
     saveDB();
-    row.remove();
+    toggleGroupsMenu(false);
+    // row.remove();
     // console.log('row', row.children()[0].innerHTML);
   })
+}
+
+
+function clearAllTables() {
+  $('#excelDataTable').html('');
+  $('#groupDataTable').html('');
+}
+
+function changeSiteTitle(newtitle) {
+  $('.menuTitle').html(newtitle);
+}
+
+function toggleMenuItems(showGroupsMenu) {
+  if (showGroupsMenu) {
+    $('.poolview').hide();
+    $('.groupview').show()
+  } else {
+    $('.groupview').hide();
+    $('.poolview').show();
+  }
+}
+
+function toggleGroupsMenu(showGroupsMenu) {
+
+  if (showGroupsMenu) {
+    // change title
+    changeSiteTitle(DEFAULT_MENU_TITLE);
+    // toggle menu
+    toggleMenuItems(true);
+    // hide data table
+    clearAllTables();
+    // show all groups table
+    // groupdb = getDBJSONValue('ppdb');
+    var tempdb = {};
+    $.each(groupdb, function(key, value) {
+      tempdb[key] = {
+        group: key,
+        pool: _setToArray(value).join(', ')
+      };
+    });
+    var notEmpty = buildHtmlTable('#groupDataTable', tempdb, {
+      name: 'action',
+      value: '<button class="btn btn-xs btn-danger deleteGroup">×</button>'
+    });
+
+    if (!notEmpty) {
+      showPoolEmptyWell();
+    }
+
+    $('.deleteGroup').click(function(e) {
+      var row = $(e.target).parent().parent();
+      var name = row.children()[0].innerHTML;
+      console.log('name', name)
+      delete groupdb[name];
+      // don't save current db just global db save
+      saveDB(true);
+      toggleGroupsMenu(true);
+      // row.remove();
+      // console.log('row', row.children()[0].innerHTML);
+    })
+
+    $('#groupDataTable > tbody > tr').click(function(e) {
+      var selectedGroup = $(e.target).parent().children()[0].innerHTML;
+      console.log($(e.target).parent().children()[0].innerHTML);
+      // switch db to current selected value
+      setDBJSONValue('currentppgroup', selectedGroup);
+      db = getDBJSONValue('ppdb')[selectedGroup];
+      setCurrentGroup(selectedGroup);
+
+      toggleGroupsMenu(false);
+
+
+    });
+  } else {
+    // change title
+    changeSiteTitle(toTitleCase(currentdb));
+    // toggle menu
+    toggleMenuItems(false);
+    // hide group table
+    clearAllTables();
+    buildFullTable();
+    initializeBlacklist();
+  }
 
 }
 
 $(window).ready(function() {
-  buildFullTable();
-  initializeBlacklist();
+
+  if (!db || db == undefined) {
+    toggleGroupsMenu(true);
+  } else {
+    toggleGroupsMenu(false);
+  }
+
 
   function bindModelInput(obj, property, domElem) {
   Object.defineProperty(obj, property, {
@@ -536,6 +720,26 @@ $('#editUserModal').on('show.bs.modal', function (event) {
   modal.find('#prayerPool').text(str);
 });
 
+$('#addGroup').click(function(e) {
+    // Save the form data via an Ajax request
+    e.preventDefault();
+
+    var name = $('#newGroupName').val();
+    console.log(name);
+
+    groupdb[name] = {};
+
+    db = {};
+    setCurrentGroup(name);
+    saveDB();
+    toggleGroupsMenu(false);
+    // // refreshTable();
+
+    // console.log('success!', name);
+
+    $("#addGroupModal").modal("hide");
+});
+
 $('#savePool').click(function(e) {
     // Save the form data via an Ajax request
     e.preventDefault();
@@ -568,6 +772,13 @@ $('#savePool').click(function(e) {
     $("#editUserModal").modal("hide");
 });
 
+
+$('#viewGroupMenu').click(function() {
+  setCurrentGroup(undefined);
+  // toggle view
+  toggleGroupsMenu(true);
+})
+
 });
 
 // $('#savePool').click(function(e) {
@@ -582,13 +793,20 @@ $('#savePool').click(function(e) {
 <nav class="navbar navbar-default navbar-fixed-top">
   <div class="container-fluid">
     <div class="navbar-header">
-      <a class="navbar-brand" href="#">Prayer Pair generator!</a>
+      <a id="viewGroupMenu" class="navbar-brand" href="#"><span class="glyphicon glyphicon-menu-hamburger"></span> <span class="menuTitle">Prayer Pair generator!</span></a>
+
     </div>
 
+    <form class="navbar-form navbar-left" role="search">
+      <button type="button" class="btn btn-success poolview" data-toggle="modal" data-target="#editUserModal">
+        Edit Pool
+      </button>
+      <button type="button" class="btn btn-success groupview" data-toggle="modal" data-target="#addGroupModal">
+        Add Group
+      </button>
+    </form>
+
     <form class="navbar-form navbar-right" role="search">
-      <button type="button" class="btn btn-success" data-toggle="modal" data-target="#editUserModal">
-          Edit Partner Pool
-        </button>
         <button type="button" class="btn btn-primary" onclick="pairup();">
           Pair up
         </button>
@@ -605,9 +823,31 @@ $('#savePool').click(function(e) {
   </div>
 </nav>
 <h3>Prayer Pair generator!</h3>
+  <table id="groupDataTable" class="table table-bordered table-hover" border="1">
+  </table>
+
   <table id="excelDataTable" class="table table-bordered table-hover" border="1">
   </table>
 
+<!-- Modal -->
+<div class="modal fade" id="addGroupModal" tabindex="-1" role="dialog" aria-labelledby="addGroupModalLabel">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        <h4 class="modal-title" id="addGroupModalLabel">Prayer Partner Pool</h4>
+      </div>
+      <div class="modal-body">
+        <p>New Group Name</p>
+        <input id="newGroupName" class="form-control" placeholder="e.g. calstate-la brothers" />
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+        <button type="button" id="addGroup" class="btn btn-primary">Add Group</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- Modal -->
 <div class="modal fade" id="editUserModal" tabindex="-1" role="dialog" aria-labelledby="editUserModalLabel">
@@ -656,7 +896,7 @@ $('#savePool').click(function(e) {
         <h4 class="modal-title">Note</h4>
       </div>
       <div class="modal-body">
-        <p>No more possible pairing combinations without violating blacklist + history constraints!</p>
+        <p>Tried to randomly assign pairs 100 times but no valid combinations found without violating blacklist + history constraints! You may have reached theoretical limit and need to reset or you can try you luck and hit "pair up" again. :)</p>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
