@@ -16,6 +16,13 @@
 #groupDataTable td:hover {
     cursor: pointer;
 }
+
+.table {
+  border-top:none;
+  border-bottom:none;
+  margin-top: 0px;
+  margin-bottom: 0px;
+}
   </style>
     <!--[if IE 8]><script src="js/es5.js"></script><![endif]-->
     <!--<script src="js/jquery.js"></script>-->
@@ -171,8 +178,8 @@ function pickRandomMatch(dbtemp, name) {
     var pc = calculationPairCount();
     pick1.history[name2] = pc;
     pick2.history[name] = pc;
-    pairdb[name].push(name2);
-    pairdb[name2].push(name);
+    // pairdb[name].push(name2);
+    // pairdb[name2].push(name);
 
     // pop out pick2
     delete db[name2];
@@ -252,7 +259,7 @@ function pairup() {
   db = dbtemp;
   saveDB();
 
-  console.log('soln', pairdb);
+  // console.log('soln', pairdb);
 
   refreshTable();
 
@@ -273,9 +280,9 @@ function calculationPairCount() {
 }
 
 function clearPairing() {
-  for (var name in pairdb) {
-    pairdb[name] = [];
-  }
+  // for (var name in pairdb) {
+  //   pairdb[name] = [];
+  // }
 
   // pairdb.paircount = 0;
 }
@@ -325,11 +332,11 @@ var DEFAULT_MENU_TITLE = 'Prayer Pair generator!';
 
 
 function showPoolEmptyWell() {
-  $('#groupDataTable').html('<div class="alert alert-warning" role="alert"><h4 class="text-center"><span class="glyphicon glyphicon-exclamation-sign" aria-hidden="true"></span> You currently have no groups!</h4> <div class="text-center"><button data-toggle="modal" data-target="#addGroupModal" class="btn btn-success btn-lg">Add a New Group!</button></div></div>');
+  $('#groupDataTable').html('<div class="alert alert-default" role="alert" style="margin:50px;"><h4 class="text-center"><span class="glyphicon glyphicon-exclamation-sign" aria-hidden="true"></span> You currently have no groups!</h4> <div class="text-center"><button data-toggle="modal" data-target="#addGroupModal" class="btn btn-success btn-lg">Add a New Group!</button></div></div>');
 }
 
 function showGroupEmptyWell() {
-  $('#excelDataTable').html('<div class="alert alert-default" role="alert"><h4 class="text-center"><span class="glyphicon glyphicon-exclamation-sign" aria-hidden="true"></span> You currently have no people in your pool!</h4> <div class="text-center"><button data-toggle="modal" data-target="#editUserModal" class="btn btn-success btn-lg">Add people to your pool!</button></div></div>');
+  $('#excelDataTable').html('<div class="alert alert-default" role="alert" style="margin:50px;"><h4 class="text-center"><span class="glyphicon glyphicon-exclamation-sign" aria-hidden="true"></span> You currently have no people in your pool!</h4> <div class="text-center"><button data-toggle="modal" data-target="#editUserModal" class="btn btn-success btn-lg">Add people to your pool!</button></div></div>');
 }
 
 // Builds the HTML Table out of myList.
@@ -586,7 +593,7 @@ function toggleGroupsMenu(showGroupsMenu) {
       // console.log('row', row.children()[0].innerHTML);
     })
 
-    $('#groupDataTable > tbody > tr').click(function(e) {
+    $('#groupDataTable > tbody > tr > td').click(function(e) {
       var selectedGroup = $(e.target).parent().children()[0].innerHTML;
       console.log($(e.target).parent().children()[0].innerHTML);
       // switch db to current selected value
@@ -720,6 +727,11 @@ $('#editUserModal').on('show.bs.modal', function (event) {
   modal.find('#prayerPool').text(str);
 });
 
+$('.autosubmit').submit(function(e) {
+  // click on primary button
+  $(this).find('.btn-primary').click();
+})
+
 $('#addGroup').click(function(e) {
     // Save the form data via an Ajax request
     e.preventDefault();
@@ -777,7 +789,12 @@ $('#viewGroupMenu').click(function() {
   setCurrentGroup(undefined);
   // toggle view
   toggleGroupsMenu(true);
-})
+});
+
+// Every time a modal is shown, if it has an autofocus element, focus on it.
+$('.modal').on('shown.bs.modal', function() {
+  $(this).find('[autofocus]').focus();
+});
 
 });
 
@@ -823,28 +840,30 @@ $('#viewGroupMenu').click(function() {
   </div>
 </nav>
 <h3>Prayer Pair generator!</h3>
-  <table id="groupDataTable" class="table table-bordered table-hover" border="1">
-  </table>
 
-  <table id="excelDataTable" class="table table-bordered table-hover" border="1">
+  <table id="excelDataTable" class="table table-bordered table-hover">
+  </table>
+  <table id="groupDataTable" class="table table-bordered table-hover">
   </table>
 
 <!-- Modal -->
 <div class="modal fade" id="addGroupModal" tabindex="-1" role="dialog" aria-labelledby="addGroupModalLabel">
   <div class="modal-dialog" role="document">
     <div class="modal-content">
-      <div class="modal-header">
-        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-        <h4 class="modal-title" id="addGroupModalLabel">Prayer Partner Pool</h4>
-      </div>
-      <div class="modal-body">
-        <p>New Group Name</p>
-        <input id="newGroupName" class="form-control" placeholder="e.g. calstate-la brothers" />
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
-        <button type="button" id="addGroup" class="btn btn-primary">Add Group</button>
-      </div>
+      <form action="" class="autosubmit">
+        <div class="modal-header">
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+          <h4 class="modal-title" id="addGroupModalLabel">Create New Group</h4>
+        </div>
+        <div class="modal-body">
+          <p>New Group Name</p>
+          <input autofocus="autofocus" id="newGroupName" class="form-control" placeholder="e.g. calstate-la brothers" />
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+          <button type="button" id="addGroup" class="btn btn-primary">Add Group</button>
+        </div>
+      </form>
     </div>
   </div>
 </div>
@@ -859,7 +878,7 @@ $('#viewGroupMenu').click(function() {
       </div>
       <div class="modal-body">
         <p>Enter partner names (e.g. Joe Doe, Jane Smith). You can also paste data from excel</p>
-        <textarea id="prayerPool" class="form-control" placeholder="Partner names (e.g. Joe Doe, Jane Smith) Paste data from excel" rows="3"></textarea>
+        <textarea autofocus="autofocus" id="prayerPool" class="form-control" placeholder="Partner names (e.g. Joe Doe, Jane Smith) Paste data from excel" rows="3"></textarea>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
