@@ -23,6 +23,31 @@
   margin-top: 0px;
   margin-bottom: 0px;
 }
+
+input.blacklist-select {
+    border: 1px solid #d0d0d0;
+    padding: 8px 8px;
+    display: inline-block;
+    width: 100%;
+    overflow: hidden;
+    position: relative;
+    z-index: 1;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    box-sizing: border-box;
+    -webkit-box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.1);
+    box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.1);
+    -webkit-border-radius: 3px;
+    -moz-border-radius: 3px;
+    border-radius: 3px;
+    background: #ffffff;
+    cursor: text;
+    display: inline-block;
+    color: #303030;
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 18px;
+}
   </style>
     <!--[if IE 8]><script src="js/es5.js"></script><![endif]-->
     <!--<script src="js/jquery.js"></script>-->
@@ -301,33 +326,6 @@ function initState() {
   addPerson('Rena Li')
 }
 
-function translateCellValue(item, key, value) {
-
-  // convert blacklist into input
-  if (key == 'blacklist') {
-    console.log(key, value);
-    var multiselect = $('<input data-person="' + item.name + '" type="text" placeholder="People avoid pairing with..." class="demo-default blacklist-select">');
-    // Set the value to comma-delimited list as pre-selected values
-    return multiselect.attr('value', _setToArray(value).toString());
-  } else if (key == 'history') {
-    var list = _setToArray(value);
-    // var div = $('<table class="row"></table');
-    var div = [];
-    for (var i=0; i<list.length; i++) {
-      div.push($('<td class="">' + list[i] + '</td>'));
-    }
-    // div.append(tr);
-    return div;
-  } else {
-    return JSON.stringify(value);
-  }
-}
-
-function toTitleCase(str) {
-  return str.replace(/\w\S*/g, function(txt){return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();});
-}
-
-
 var DEFAULT_MENU_TITLE = 'Prayer Pair generator!';
 
 
@@ -339,11 +337,39 @@ function showGroupEmptyWell() {
   $('#excelDataTable').html('<div class="alert alert-default" role="alert" style="margin:50px;"><h4 class="text-center"><span class="glyphicon glyphicon-exclamation-sign" aria-hidden="true"></span> You currently have no people in your pool!</h4> <div class="text-center"><button data-toggle="modal" data-target="#editUserModal" class="btn btn-success btn-lg">Add people to your pool!</button></div></div>');
 }
 
+function toTitleCase(str) {
+  return str.replace(/\w\S*/g, function(txt){return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();});
+}
+
+function translateCellValue(item, key, value) {
+
+  // convert blacklist into input
+  if (key == 'blacklist') {
+    // console.log(key, value);
+    var multiselect = '<input data-person="' + item.name + '" type="text" placeholder="People avoid pairing with..." class="demo-default blacklist-select" value="' + _setToArray(value).toString() + '">';
+    // Set the value to comma-delimited list as pre-selected values
+    // return multiselect.attr('value', _setToArray(value).toString());
+    return multiselect;
+  } else if (key == 'history') {
+    var list = _setToArray(value);
+    // var div = $('<table class="row"></table');
+    var div = [];
+    for (var i=0; i<list.length; i++) {
+      div.push('<td class="">' + list[i] + '</td>');
+    }
+    // div.append(tr);
+    return div;
+  } else {
+    return JSON.stringify(value);
+  }
+}
+
 // Builds the HTML Table out of myList.
 // Returns true if table none-empty, else false
 function buildHtmlTable(selector, db, actionCol) {
   var columns = addAllColumnHeaders(db, selector, actionCol),
-      columnLength = columns.length;
+      columnLength = columns.length,
+      html = '';
 
   if (actionCol) {
     columnLength--;
@@ -353,9 +379,9 @@ function buildHtmlTable(selector, db, actionCol) {
     if (!db.hasOwnProperty(i)) {
       continue;
     }
-    var row$ = $('<tr/>');
+    var row$ = '<tr>';
     for (var colIndex = 0 ; colIndex < columnLength ; colIndex++) {
-      console.log('colinex', colIndex)
+      // console.log('colinex', colIndex)
       var item = db[i];
       var cellValue = item[columns[colIndex]];
 
@@ -368,20 +394,24 @@ function buildHtmlTable(selector, db, actionCol) {
 
       // catch case when cell hold many cells
       if ($.isArray(cellValue) && cellValue.length > 0) {
-        row$.append(cellValue);
+        row$ += cellValue;
       } else {
-        row$.append($('<td/>').html(cellValue));
+        row$ += '<td>' + (cellValue) + '</td>';
       }
     }
 
-    console.log('build', actionCol, colIndex, row$);
+    // console.log('build', actionCol, colIndex, row$);
 
     if (actionCol) {
-      row$.append($('<td/>').html(actionCol.value));
+      row$ += '<td>' + actionCol.value + '</td>';
     }
 
-    $(selector).append(row$);
+    row$ += '</tr>';
+
+    html += row$;
   }
+
+  $(selector).html(html);
 
   if (columnLength <= 0) {
     return false;
@@ -432,7 +462,7 @@ function addAllColumnHeaders(db, selector, actionCol) {
 function refreshTable() {
   $('#excelDataTable').html('');
   buildFullTable();
-  initializeBlacklist();
+  // initializeBlacklist();
 }
 
 function initializeBlacklist() {
@@ -523,15 +553,15 @@ function buildFullTable() {
     showGroupEmptyWell();
   }
 
-  $('.deleteUser').click(function(e) {
-    var row = $(e.target).parent().parent();
-    var name = row.children()[0].innerHTML;
-    delete db[name];
-    saveDB();
-    toggleGroupsMenu(false);
-    // row.remove();
-    // console.log('row', row.children()[0].innerHTML);
-  })
+  // $('.deleteUser').click(function(e) {
+  //   var row = $(e.target).parent().parent();
+  //   var name = row.children()[0].innerHTML;
+  //   delete db[name];
+  //   saveDB();
+  //   toggleGroupsMenu(false);
+  //   // row.remove();
+  //   // console.log('row', row.children()[0].innerHTML);
+  // })
 }
 
 
@@ -613,12 +643,61 @@ function toggleGroupsMenu(showGroupsMenu) {
     // hide group table
     clearAllTables();
     buildFullTable();
-    initializeBlacklist();
+    // initializeBlacklist();
   }
 
 }
 
 $(window).ready(function() {
+
+  $(document).on('click', '.deleteUser',function(e) {
+    var row = $(e.target).parent().parent();
+    var name = row.children()[0].innerHTML;
+    delete db[name];
+    saveDB();
+    toggleGroupsMenu(false);
+    // row.remove();
+    // console.log('row', row.children()[0].innerHTML);
+  })
+
+  $(document).on('click', '.blacklist-select', function(e) {
+    console.log('licked on input', e, $(this), $(this).hasClass('selectize-control'), $(this).attr('class'), e.target)
+    if (!$(this).hasClass('selectize-control')) {
+      $(this).selectize({
+        delimiter: ',',
+        plugins: ['remove_button'],
+        maxItems: null,
+        valueField: 'name',
+        labelField: 'name',
+        searchField: 'name',
+        options: _dictToArray(db),
+        create: true,
+        onItemAdd: function(value, $item) {
+          // Add to person's black list
+          var p = db[this.$input.data('person')];
+          p.blacklist[value] = true;
+          console.log('add', this, value, $item, this.$input.data('person'));
+          saveDB();
+        },
+        onItemRemove: function(value) {
+          var p = db[this.$input.data('person')];
+          delete p.blacklist[value];
+          console.log('delete', value);
+          saveDB();
+        },
+        onBlur: function() {
+          saveDB();
+        },
+        onOptionAdd: function(value, data) {
+          console.log('add new option', value, data);
+          // add the user to db table
+          addPerson(value);
+          // refresh table
+          refreshTable();
+        }
+      });
+    }
+  });
 
   if (!db || db == undefined) {
     toggleGroupsMenu(true);
@@ -896,9 +975,11 @@ $('.modal').on('shown.bs.modal', function() {
         <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
         <h4 class="modal-title" id="pairsModalLabel">Prayer Pairs</h4>
       </div>
+      <div class="span12" style="overflow: auto">
       <div class="modal-body">
         ...
       </div>
+    </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
         <!-- <button type="button" class="btn btn-primary">Save changes</button> -->
