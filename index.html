@@ -223,8 +223,8 @@ function pickAll(dbtemp) {
     if (!pickRandomMatch(dbtemp, name)) {
       // reset db
       console.log('resetting to group', getCurrentGroup());
-      db = groupdb[getCurrentGroup];
-      setDBToGroup(getCurrentGroup());
+      // db = groupdb[getCurrentGroup];
+      groupdb[getCurrentGroup()] = setDBToGroup(getCurrentGroup());
       // $('#pairWarning').modal('show');
       console.error('Could be out of solutions: did not match ' + name);
       return false;
@@ -663,7 +663,7 @@ $(window).ready(function() {
   $(document).on('click', '.blacklist-select', function(e) {
     console.log('licked on input', e, $(this), $(this).hasClass('selectize-control'), $(this).attr('class'), e.target)
     if (!$(this).hasClass('selectize-control')) {
-      $(this).selectize({
+      var selectized = $(this).selectize({
         delimiter: ',',
         plugins: ['remove_button'],
         maxItems: null,
@@ -696,6 +696,10 @@ $(window).ready(function() {
           refreshTable();
         }
       });
+
+      console.log('selectized', selectized)
+      // Fake click to auto focus after initialization
+      $($(this).next()[0]).find('.selectize-input').click();
     }
   });
 
