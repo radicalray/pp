@@ -55,7 +55,7 @@ input.blacklist-select {
 <script>
 
 var currentdb, groupdb, pairdb, db;
-
+var EFFICIENT_MODE = true; // Turns off automatic selectize initialization for better speed performance
 
 function getDBJSONValue(key) {
   var j = window.localStorage[key];
@@ -262,17 +262,6 @@ function pairup() {
     $('#pairWarning').modal('show');
   }
 
-  // for (var name in db) {
-  //   // if no match, need to give up, and throw
-  //   if (!pickRandomMatch(dbtemp, name)) {
-  //     // reset db
-  //     db = getDBJSONValue('ppdb');
-  //     // $('#pairWarning').modal('show');
-  //     throw 'Could be out of solutions: did not match ' + name;
-  //     console.log('asdf');
-  //   }
-  // }
-
   // double check dbtemp should be empty after all the picking
   for (key in db) {
     throw 'db should be empty but found: ' + key + ':' + JSON.stringify(db);
@@ -283,8 +272,6 @@ function pairup() {
   // commit back to db
   db = dbtemp;
   saveDB();
-
-  // console.log('soln', pairdb);
 
   refreshTable();
 
@@ -304,16 +291,7 @@ function calculationPairCount() {
   return paircount;
 }
 
-function clearPairing() {
-  // for (var name in pairdb) {
-  //   pairdb[name] = [];
-  // }
-
-  // pairdb.paircount = 0;
-}
-
 function clearState() {
-  clearPairing();
   clearHistory();
   saveDB();
   refreshTable();
@@ -352,13 +330,11 @@ function translateCellValue(item, key, value) {
     return multiselect;
   } else if (key == 'history') {
     var list = _setToArray(value);
-    // var div = $('<table class="row"></table');
-    var div = [];
+    var htmllist = [];
     for (var i=0; i<list.length; i++) {
-      div.push('<td class="">' + list[i] + '</td>');
+      htmllist.push('<td class="">' + list[i] + '</td>');
     }
-    // div.append(tr);
-    return div;
+    return htmllist;
   } else {
     return JSON.stringify(value);
   }
@@ -462,12 +438,13 @@ function addAllColumnHeaders(db, selector, actionCol) {
 function refreshTable() {
   $('#excelDataTable').html('');
   buildFullTable();
-  // initializeBlacklist();
+  if (!EFFICIENT_MODE) {
+    initializeBlacklist();
+  }
 }
 
-function initializeBlacklist() {
-  // initialize all the blacklist plugins
-  $('.blacklist-select').selectize({
+function intializeSelectize(elem$) {
+  elem$.selectize({
     delimiter: ',',
     plugins: ['remove_button'],
     maxItems: null,
@@ -502,8 +479,12 @@ function initializeBlacklist() {
   });
 }
 
+function initializeBlacklist() {
+  // initialize all the blacklist plugins
+  intializeSelectize($('.blacklist-select'));
+}
+
 // Detect Paste!
-//
 function getTextAreaSelection(textarea) {
   var start = textarea.selectionStart, end = textarea.selectionEnd;
   return {
@@ -553,15 +534,6 @@ function buildFullTable() {
     showGroupEmptyWell();
   }
 
-  // $('.deleteUser').click(function(e) {
-  //   var row = $(e.target).parent().parent();
-  //   var name = row.children()[0].innerHTML;
-  //   delete db[name];
-  //   saveDB();
-  //   toggleGroupsMenu(false);
-  //   // row.remove();
-  //   // console.log('row', row.children()[0].innerHTML);
-  // })
 }
 
 
@@ -594,7 +566,6 @@ function toggleGroupsMenu(showGroupsMenu) {
     // hide data table
     clearAllTables();
     // show all groups table
-    // groupdb = getDBJSONValue('ppdb');
     var tempdb = {};
     $.each(groupdb, function(key, value) {
       tempdb[key] = {
@@ -643,80 +614,15 @@ function toggleGroupsMenu(showGroupsMenu) {
     // hide group table
     clearAllTables();
     buildFullTable();
-    // initializeBlacklist();
+    if (!EFFICIENT_MODE) {
+      initializeBlacklist();
+    }
   }
 
 }
 
-$(window).ready(function() {
-
-  $(document).on('click', '.deleteUser',function(e) {
-    var row = $(e.target).parent().parent();
-    var name = row.children()[0].innerHTML;
-    delete db[name];
-    saveDB();
-    toggleGroupsMenu(false);
-    // row.remove();
-    // console.log('row', row.children()[0].innerHTML);
-  })
-
-  $(document).on('click', '.blacklist-select', function(e) {
-    console.log('licked on input', e, $(this), $(this).hasClass('selectize-control'), $(this).attr('class'), e.target)
-    if (!$(this).hasClass('selectize-control')) {
-      var selectized = $(this).selectize({
-        delimiter: ',',
-        plugins: ['remove_button'],
-        maxItems: null,
-        valueField: 'name',
-        labelField: 'name',
-        searchField: 'name',
-        options: _dictToArray(db),
-        create: true,
-        onItemAdd: function(value, $item) {
-          // Add to person's black list
-          var p = db[this.$input.data('person')];
-          p.blacklist[value] = true;
-          console.log('add', this, value, $item, this.$input.data('person'));
-          saveDB();
-        },
-        onItemRemove: function(value) {
-          var p = db[this.$input.data('person')];
-          delete p.blacklist[value];
-          console.log('delete', value);
-          saveDB();
-        },
-        onBlur: function() {
-          saveDB();
-        },
-        onOptionAdd: function(value, data) {
-          console.log('add new option', value, data);
-          // add the user to db table
-          addPerson(value);
-          // refresh table
-          refreshTable();
-        }
-      });
-
-      console.log('selectized', selectized)
-      // Fake click to auto focus after initialization
-      $($(this).next()[0]).find('.selectize-input').click();
-    }
-  });
-
-  if (!db || db == undefined) {
-    toggleGroupsMenu(true);
-  } else {
-    toggleGroupsMenu(false);
-  }
-
-
-  function bindModelInput(obj, property, domElem) {
-  Object.defineProperty(obj, property, {
-    get: function() { return domElem.value; },
-    set: function(newValue) { domElem.value = newValue; },
-    configurable: true
-  });
-
+function handleExcelPaste() {
+  // Handles pasting from excel data
   var textarea = document.getElementById("prayerPool");
   detectPaste(textarea, function(pasteInfo) {
       console.log(pasteInfo.text, pasteInfo);
@@ -726,7 +632,6 @@ $(window).ready(function() {
       textarea.value = textarea.value.replaceBetween(pasteInfo.start,
           pasteInfo.end, str);
 
-
       // restore cursor from variables...
       console.log('start/end', pasteInfo.start, pasteInfo.start + str.length);
       pasteInfo.elem.setSelectionRange(pasteInfo.start, pasteInfo.start + str.length);
@@ -734,12 +639,6 @@ $(window).ready(function() {
       // index and length of the pasted text
   });
 }
-
-//<input id="foo">
-user = {}
-bindModelInput(user,'name',document.getElementById('foo')); //hey presto, we now have two-way data binding.
-
-
 
 
 function drawTable(data) {
@@ -782,6 +681,40 @@ function sortHistory(history) {
   return temp;
 }
 
+
+$(window).ready(function() {
+
+  $(document).on('click', '.deleteUser',function(e) {
+    var row = $(e.target).parent().parent();
+    var name = row.children()[0].innerHTML;
+    delete db[name];
+    saveDB();
+    toggleGroupsMenu(false);
+    // row.remove();
+    // console.log('row', row.children()[0].innerHTML);
+  })
+
+  $(document).on('click', '.blacklist-select', function(e) {
+    console.log('licked on input', e, $(this), $(this).hasClass('selectize-control'), $(this).attr('class'), e.target)
+    if (!$(this).hasClass('selectize-control')) {
+      var selectized = intializeSelectize($(this));
+
+      console.log('selectized', selectized)
+      // Fake click to auto focus after initialization
+      $($(this).next()[0]).find('.selectize-input').click();
+    }
+  });
+
+  if (!db || db == undefined) {
+    toggleGroupsMenu(true);
+  } else {
+    toggleGroupsMenu(false);
+  }
+
+
+handleExcelPaste();
+
+
 $('#pairsModal').on('show.bs.modal', function (event) {
   var button = $(event.relatedTarget) // Button that triggered the modal
   // var recipient = button.data('whatever') // Extract info from data-* attributes
@@ -810,6 +743,7 @@ $('#editUserModal').on('show.bs.modal', function (event) {
   modal.find('#prayerPool').text(str);
 });
 
+// catch enter keypress to auto click primary btn
 $('.autosubmit').submit(function(e) {
   // click on primary button
   $(this).find('.btn-primary').click();
@@ -881,10 +815,28 @@ $('.modal').on('shown.bs.modal', function() {
 
 });
 
-// $('#savePool').click(function(e) {
 
-// })
+////// Cool code to play with in the future
+///
+/*
 
+
+function bindModelInput(obj, property, domElem) {
+  Object.defineProperty(obj, property, {
+    get: function() { return domElem.value; },
+    set: function(newValue) { domElem.value = newValue; },
+    configurable: true
+  });
+
+
+}
+
+//<input id="foo">
+user = {}
+bindModelInput(user,'name',document.getElementById('foo')); //hey presto, we now have two-way data binding.
+
+
+ */
 
   </script>
 
