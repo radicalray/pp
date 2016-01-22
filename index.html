@@ -53,6 +53,16 @@ input.blacklist-select {
     line-height: 18px;
     min-width: 170px;
 }
+
+.sms-text {
+  border-top: 1px solid #e5e5e5;
+  margin-top: 10px;
+  padding: 5px 15px;
+}
+
+.colSelected {
+  background-color: #f9f9f9;
+}
   </style>
     <!--[if IE 8]><script src="js/es5.js"></script><![endif]-->
     <!--<script src="js/jquery.js"></script>-->
@@ -699,7 +709,7 @@ $(window).ready(function() {
     // console.log('row', row.children()[0].innerHTML);
   })
 
-  $(document).on('click', '.blacklist-select', function(e) {
+  $(document).on('click focus', '.blacklist-select', function(e) {
     console.log('licked on input', e, $(this), $(this).hasClass('selectize-control'), $(this).attr('class'), e.target)
     if (!$(this).hasClass('selectize-control')) {
       var selectized = intializeSelectize($(this));
@@ -709,6 +719,41 @@ $(window).ready(function() {
       $($(this).next()[0]).find('.selectize-input').click();
     }
   });
+
+  var pairsModal = $('#pairsModal');
+
+  // Event handler to print out text versions of prayer pair for SMS consumption
+  pairsModal.on('click', 'table td', function(e) {
+    var cell = $(this);
+    console.log('index', cell, cell.index())
+
+    var ci = cell.index();
+
+    // clear previous highlighting
+    pairsModal.find('table td').removeClass('colSelected');
+
+    var col1 = pairsModal.find('table tr td:first-child');
+    var col2 = pairsModal.find('table tr td:nth-child('+(ci+1)+')');
+
+    // highlight current one
+    col2.addClass('colSelected');
+
+    var html = '';
+
+    for (var i=0; i<col1.length; i++) {
+      html += col1[i].innerHTML + ' - ' + col2[i].innerHTML + ', ';
+    }
+
+    console.log('text', html)
+
+    $('.sms-text').html(html);
+
+
+  })
+
+  $('#pairsModal').on('mouseover', 'td', function(e) {
+    $('#pairsModal table tr td:nth-child('+$(this).index()+')')
+  })
 
   if (!db || db == undefined) {
     toggleGroupsMenu(true);
@@ -735,6 +780,9 @@ $('#pairsModal').on('show.bs.modal', function (event) {
 
   var table = drawTable(pairdb);
   modal.find('.modal-body').empty().append(table);
+
+  // fake clicking column to trigger default sms text
+  pairsModal.find('table tr:first-child td:nth-child(2)').click();
 });
 
 $('#editUserModal').on('show.bs.modal', function (event) {
@@ -940,6 +988,8 @@ bindModelInput(user,'name',document.getElementById('foo')); //hey presto, we now
       <div class="modal-body">
         ...
       </div>
+      <div class="container-fluid"><i><b>SMS Version: </b>Click on a column to see a text-only version for SMS below</i></div>
+      <div class="sms-text container-fluid"></div>
     </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
