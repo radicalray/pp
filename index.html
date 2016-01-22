@@ -740,8 +740,21 @@ $(window).ready(function() {
 
     var html = '';
 
+    // Set to prevent symmetric repeats
+    var usedNames = {};
+
+    var val1, val2;
+
     for (var i=0; i<col1.length; i++) {
-      html += col1[i].innerHTML + ' - ' + col2[i].innerHTML + ', ';
+      val1 = $(col1[i]).text();
+      if (!(val1 in usedNames)) {
+        val2 = col2[i].innerHTML;
+        html += val1 + ' - ' + val2 + ', ';
+
+        // add to set
+        usedNames[val1] = true;
+        usedNames[val2] = true;
+      }
     }
 
     console.log('text', html)
