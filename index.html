@@ -915,16 +915,19 @@ bindModelInput(user,'name',document.getElementById('foo')); //hey presto, we now
 
     </div>
 
-    <form class="navbar-form navbar-left" role="search">
+    <form class="navbar-form navbar-left">
       <button type="button" class="btn btn-success poolview" data-toggle="modal" data-target="#editUserModal">
         Edit Pool
       </button>
+    </form>
+
+    <form class="navbar-form navbar-right groupview">
       <button type="button" class="btn btn-success groupview" data-toggle="modal" data-target="#addGroupModal">
         Add Group
       </button>
     </form>
 
-    <form class="navbar-form navbar-right poolview" role="search">
+    <form class="navbar-form navbar-right poolview">
         <button type="button" class="btn btn-primary" onclick="pairup();">
           Pair up
         </button>
