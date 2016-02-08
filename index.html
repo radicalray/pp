@@ -854,6 +854,12 @@ $('#savePool').click(function(e) {
         newdb[user] = db[user];
       } else {
         newdb[user] = addPerson(user);
+        // fill in the missing gaps with fillers
+        var len = calculationPairCount();
+        var u = newdb[user];
+        for (var i=0; i<len; i++) {
+          u.history['N/A ' + (i+1)] = i;
+        }
       }
 
     }
@@ -915,16 +921,19 @@ bindModelInput(user,'name',document.getElementById('foo')); //hey presto, we now
 
     </div>
 
-    <form class="navbar-form navbar-left" role="search">
+    <form class="navbar-form navbar-left">
       <button type="button" class="btn btn-success poolview" data-toggle="modal" data-target="#editUserModal">
         Edit Pool
       </button>
+    </form>
+
+    <form class="navbar-form navbar-right groupview">
       <button type="button" class="btn btn-success groupview" data-toggle="modal" data-target="#addGroupModal">
         Add Group
       </button>
     </form>
 
-    <form class="navbar-form navbar-right poolview" role="search">
+    <form class="navbar-form navbar-right poolview">
         <button type="button" class="btn btn-primary" onclick="pairup();">
           Pair up
         </button>
