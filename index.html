@@ -854,6 +854,12 @@ $('#savePool').click(function(e) {
         newdb[user] = db[user];
       } else {
         newdb[user] = addPerson(user);
+        // fill in the missing gaps with fillers
+        var len = calculationPairCount();
+        var u = newdb[user];
+        for (var i=0; i<len; i++) {
+          u.history['N/A ' + (i+1)] = i;
+        }
       }
 
     }
