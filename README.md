@@ -6,10 +6,13 @@ Allows you to auto-create prayer pairs between members of a group/pool taking in
 History guarantees that no prayer pair would ever repeat (if pool is big enough)
 Blacklist manually filters out unwanted pairings (e.g. GP's, brother/sister rule #7, etc).
 
+### Demo
+http://radicalray.github.io/pp/
+
 ### Algorithm
 
 The pairing algorithm is very naive and randomly assigns pairings and checks to see if it satisfies all the constraints.
-I tries this 100 times before giving up. Performs fairly well for small pools (~20)
+It tries this 100 times before giving up. Performs fairly well for small pools (~20)
 
 In an overly-constrained big pool (~300), may struggle to get out of a no-solution well, also known as backtracking in 3SAT algos.
 
